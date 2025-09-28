@@ -136,8 +136,8 @@ spec:
                         fi
                         
                         echo "Pushing $CHART_PACKAGE to $REGISTRY_URL"
-                        # Add --insecure-registry flag for HTTP registries
-                        helm push "$CHART_PACKAGE" "$REGISTRY_URL" --insecure-registry
+                        # Add  flag for HTTP registries
+                        helm push "$CHART_PACKAGE" "$REGISTRY_URL"
                     '''
                 }
             }
@@ -147,8 +147,8 @@ spec:
             steps {
                 container('helm') {
                     sh '''
-                        # Corrected pull command for OCI and added --insecure-registry
-                        helm pull "${REGISTRY_URL}/${CHART_NAME}" --version ${CHART_VERSION} --insecure-registry
+                        # Corrected pull command for OCI and added 
+                        helm pull "${REGISTRY_URL}/${CHART_NAME}" --version ${CHART_VERSION}
                         ls -la
                     '''
                 }
