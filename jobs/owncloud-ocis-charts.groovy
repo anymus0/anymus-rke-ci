@@ -45,6 +45,28 @@ spec:
                 }
             }
         }
+
+        stage('Prepare Values for Linting') {
+            steps {
+                container('helm') {
+                    dir('charts/ocis') {
+                        script {
+                            echo "Updating values.yaml to set externalDomain..."
+                            // Read the values.yaml file into a Groovy object
+                            def values = readYaml file: 'values.yaml' ?: [:]
+
+                            // Overwrite or set the externalDomain value
+                            values.externalDomain = 'example.com'
+                            
+                            // Write the modified object back to the file
+                            writeYaml file: 'values.yaml', data: values, overwrite: true
+                            
+                            echo "Successfully set externalDomain to 'example.com'"
+                        }
+                    }
+                }
+            }
+        }
         
         stage('Lint Helm Chart') {
             steps {
