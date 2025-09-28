@@ -22,7 +22,8 @@ spec:
     }
     
     environment {
-        REGISTRY_URL = 'oci://harbor.anymus.pro/anymus-helm-pub'
+        REGISTRY_URL = 'oci://harbor-core.harbor/anymus-helm-pub'
+        REGISTRY_HOST = 'harbor-core.harbor'
         CHART_NAME = 'ocis'
         CHART_VERSION = "${BUILD_NUMBER}"
     }
@@ -31,7 +32,6 @@ spec:
         stage('Clone Helm Chart Repository') {
             steps {
                 container('git') {
-                    // Clone the Helm chart repository
                     git branch: 'main', url: 'https://github.com/owncloud/ocis-charts.git'
                     dir('charts/ocis') {
                         script {
@@ -45,15 +45,12 @@ spec:
                 }
             }
         }
-    }
         
         stage('Lint Helm Chart') {
             steps {
                 container('helm') {
                     dir('charts/ocis') {
-                        sh '''
-                            helm lint .
-                        '''
+                        sh 'helm lint .'
                     }
                 }
             }
@@ -78,11 +75,7 @@ spec:
                 container('helm') {
                     dir('charts/ocis') {
                         sh '''
-                            helm package . \
-                                --version ${CHART_VERSION} \
-                                --destination ./packaged-charts/
-                            
-                            # List the packaged chart
+                            helm package . --version ${CHART_VERSION} --destination ./packaged-charts/
                             ls -la ./packaged-charts/
                         '''
                         archiveArtifacts artifacts: 'packaged-charts/*.tgz', fingerprint: true
@@ -100,8 +93,7 @@ spec:
                         passwordVariable: 'REGISTRY_PASSWORD'
                     )]) {
                         sh '''
-                            echo $REGISTRY_PASSWORD | helm registry login \
-                                $(echo $REGISTRY_URL | sed 's|oci://||' | cut -d'/' -f1) \
+                            echo $REGISTRY_PASSWORD | helm registry login $REGISTRY_HOST \
                                 --username $REGISTRY_USERNAME \
                                 --password-stdin
                         '''
@@ -113,22 +105,18 @@ spec:
         stage('Push to OCI Registry') {
             steps {
                 container('helm') {
-                    dir('charts/ocis') {
-                        sh '''
-                            # Find the packaged chart
-                            CHART_PACKAGE=$(find ./packaged-charts/ -name "*.tgz" -type f)
-                            
-                            if [ -z "$CHART_PACKAGE" ]; then
-                                echo "No chart package found!"
-                                exit 1
-                            fi
-                            
-                            echo "Pushing $CHART_PACKAGE to $REGISTRY_URL"
-                            helm push "$CHART_PACKAGE" "$REGISTRY_URL"
-                            
-                            echo "Chart successfully pushed to registry"
-                        '''
-                    }
+                    sh '''
+                        CHART_PACKAGE=$(find ./charts/ocis/packaged-charts/ -name "*.tgz" -type f)
+                        
+                        if [ -z "$CHART_PACKAGE" ]; then
+                            echo "No chart package found!"
+                            exit 1
+                        fi
+                        
+                        echo "Pushing $CHART_PACKAGE to $REGISTRY_URL"
+                        # Add --insecure-registry flag for HTTP registries
+                        helm push "$CHART_PACKAGE" "$REGISTRY_URL" --insecure-registry
+                    '''
                 }
             }
         }
@@ -137,25 +125,24 @@ spec:
             steps {
                 container('helm') {
                     sh '''
-                        # Try to pull the chart to verify it was pushed successfully
-                        helm pull ${REGISTRY_URL}/${CHART_NAME} --version ${CHART_VERSION} --destination ./verification/
-                        ls -la ./verification/
+                        # Corrected pull command for OCI and added --insecure-registry
+                        helm pull "${REGISTRY_URL}/${CHART_NAME}" --version ${CHART_VERSION} --insecure-registry
+                        ls -la
                     '''
                 }
             }
         }
+    }
+    
     post {
         always {
             container('helm') {
-                sh '''
-                    # Logout from registry
-                    helm registry logout $(echo $REGISTRY_URL | sed 's|oci://||' | cut -d'/' -f1) || true
-                '''
+                sh 'helm registry logout $REGISTRY_HOST || true'
             }
             cleanWs()
         }
         success {
-            echo "Helm chart ${CHART_NAME}:${CHART_VERSION} successfully packaged and pushed to ${REGISTRY_URL}"
+            echo "Helm chart ${CHART_NAME}:${CHART_VERSION} successfully pushed to ${REGISTRY_URL}"
         }
         failure {
             echo "Pipeline failed. Check the logs for details."
