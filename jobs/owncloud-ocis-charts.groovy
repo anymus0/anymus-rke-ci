@@ -22,7 +22,7 @@ spec:
     }
     
     environment {
-        REGISTRY_URL = 'oci://harbor-core.harbor/anymus-helm-pub'
+        REGISTRY_URL = 'oci://harbor.anymus.pro/anymus-helm-pub'
         REGISTRY_HOST = 'harbor-core.harbor'
         CHART_NAME = 'ocis'
         CHART_VERSION = "${BUILD_NUMBER}"
